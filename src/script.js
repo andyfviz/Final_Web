@@ -1,4 +1,18 @@
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { Timer } from 'three/addons/misc/Timer.js'
+import GUI from 'lil-gui'
+
+function toggleMenu() {
+    const menu = document.getElementById("menu");
+    menu.classList.toggle("hidden");
+}
+
+/**
+ * Base
+ */
+// Debug
+const gui = new GUI()
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -7,60 +21,63 @@ const canvas = document.querySelector('canvas.webgl')
 const scene = new THREE.Scene()
 
 /**
- * GROUPS
+ * House
  */
-const group = new THREE.Group ()
-group.position.y=1
-group.scale.y = 2
-group.rotation.y = 1
-scene.add (group)
-
-const cube1 =new THREE.Mesh (
-    new THREE.BoxGeometry (1,1,1),
-    new THREE.MeshBasicMaterial ({color: 'red'})
+// Temporary sphere
+const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 32, 32),
+    new THREE.MeshStandardMaterial({ roughness: 0.7 })
 )
-group.add (cube1)
+scene.add(sphere)
 
-const cube2 =new THREE.Mesh (
-    new THREE.BoxGeometry (1,1,1),
-    new THREE.MeshBasicMaterial ({color: 'green'})
-)
-cube2.position.x= -2
-group.add (cube2)
+/**
+ * Lights
+ */
+// Ambient light
+const ambientLight = new THREE.AmbientLight('#ffffff', 0.5)
+scene.add(ambientLight)
 
-const cube3 =new THREE.Mesh (
-    new THREE.BoxGeometry (1,1,1),
-    new THREE.MeshBasicMaterial ({color: 'blue'})
-)
-cube3.position.x=2 
-group.add (cube3)
-//console.log (mesh.position.length()) //distance position and center of scene
-// mesh.position.normalize () //reduce vector until length is 1 
-
-//AXIS HELPER
-const AxesHelper =new THREE.AxesHelper ()
-scene.add (AxesHelper)
+// Directional light
+const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
+directionalLight.position.set(3, 2, -8)
+scene.add(directionalLight)
 
 /**
  * Sizes
  */
 const sizes = {
-    width: 800,
-    height: 600
+    width: window.innerWidth,
+    height: window.innerHeight
 }
+
+window.addEventListener('resize', () =>
+{
+    // Update sizes
+    sizes.width = window.innerWidth
+    sizes.height = window.innerHeight
+
+    // Update camera
+    camera.aspect = sizes.width / sizes.height
+    camera.updateProjectionMatrix()
+
+    // Update renderer
+    renderer.setSize(sizes.width, sizes.height)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+})
 
 /**
  * Camera
  */
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height)
-camera.position.z = 1
-camera.position.z = 1
-camera.position.z = 3
+// Base camera
+const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
+camera.position.x = 4
+camera.position.y = 2
+camera.position.z = 5
 scene.add(camera)
 
-
-
-//console.log (mesh.position.distanceTo(camera.position)) //distance between object and camera
+// Controls
+const controls = new OrbitControls(camera, canvas)
+controls.enableDamping = true
 
 /**
  * Renderer
@@ -69,4 +86,27 @@ const renderer = new THREE.WebGLRenderer({
     canvas: canvas
 })
 renderer.setSize(sizes.width, sizes.height)
-renderer.render(scene, camera)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+/**
+ * Animate
+ */
+const timer = new Timer()
+
+const tick = () =>
+{
+    // Timer
+    timer.update()
+    const elapsedTime = timer.getElapsed()
+
+    // Update controls
+    controls.update()
+
+    // Render
+    renderer.render(scene, camera)
+
+    // Call tick again on the next frame
+    window.requestAnimationFrame(tick)
+}
+
+tick()
