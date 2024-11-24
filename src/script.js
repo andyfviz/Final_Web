@@ -1,150 +1,141 @@
-import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { Timer } from 'three/addons/misc/Timer.js'
-import GUI from 'lil-gui'
-import { ThreeMFLoader } from 'three/examples/jsm/Addons.js'
+import * as THREE from 'three';
+import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { Sky } from 'three/addons/objects/Sky.js'
 
+let scene, camera, renderer
+let mesh, texture
+let mouse = { x: 0, y: 0 }
+const worldWidth = 256, worldDepth = 256
+
+/**MENU */
+// Función que alterna la visibilidad del menú
 function toggleMenu() {
-    const menu = document.getElementById("menu");
-    menu.classList.toggle("hidden");
+    const menu = document.getElementById("menu")
+    menu.classList.toggle("hidden")
 }
+document.querySelector('.icono-menu').addEventListener('click', toggleMenu)
 
-/**
- * Base
- */
-// Debug
-const gui = new GUI()
-
-// Canvas
-const canvas = document.querySelector('canvas.webgl')
-
-// Scene
-const scene = new THREE.Scene()
-
-/**
- * TEXTURES
- */
-const textureLoader = new THREE.TextureLoader ()
-
-//FLOOR
-const floor = new THREE.Mesh (
-    new THREE.PlaneGeometry (20,20,100,100),
-)
-floor.rotation.x = -Math.PI * 0.5
-scene.add (floor)
-
-/**
- * Lights
- */
-// Ambient light
-const ambientLight = new THREE.AmbientLight('#86cdff', 0.275)
-scene.add(ambientLight)
-
-// Directional light
-const directionalLight = new THREE.DirectionalLight('#86cdff', 1)
-directionalLight.position.set(3, 2, -8)
-scene.add(directionalLight)
-
-//GHOST
-
-const ghost1 = new THREE.PointLight ('#8800ff', 6)
-const ghost2 = new THREE.PointLight ('#ff0088', 6)
-const ghost3 = new THREE.PointLight ('#ff0000', 6)
-scene.add (ghost1,ghost2, ghost3)
-
-/**
- * Sizes
- */
-const sizes = {
-    width: window.innerWidth,
-    height: window.innerHeight
-}
-
-window.addEventListener('resize', () =>
-{
-    // Update sizes
-    sizes.width = window.innerWidth
-    sizes.height = window.innerHeight
-
-    // Update camera
-    camera.aspect = sizes.width / sizes.height
-    camera.updateProjectionMatrix()
-
-    // Update renderer
-    renderer.setSize(sizes.width, sizes.height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+//MOVIMIENTO MOUSE
+window.addEventListener('mousemove', (event) => {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 })
 
-/**
- * Camera
- */
-// Base camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-camera.position.x = 4
-camera.position.y = 2
-camera.position.z = 5
-scene.add(camera)
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight)
+}
 
-// Controls
-const controls = new OrbitControls(camera, canvas)
-controls.enableDamping = true
+init()
+animate()
 
-/**
- * Renderer
- */
-const renderer = new THREE.WebGLRenderer({
-    canvas: canvas
-})
-renderer.setSize(sizes.width, sizes.height)
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+function init() {
+    // Crear escena
+    scene = new THREE.Scene()
 
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.FogExp2(0x87ceeb, 0.001)// Niebla suave
 
-//mapping
-directionalLight.shadow.mapSize.width = 256
-directionalLight.shadow.mapSize.height = 256
-directionalLight.shadow.camera.top =8
-directionalLight.shadow.camera.right =8
-directionalLight.shadow.camera.bottom =-8
-directionalLight.shadow.camera.left =-8
-directionalLight.shadow.camera.near =1
-directionalLight.shadow.camera.far = 20
+    // Crear cámara
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000);
+    camera.position.set(1000, 800, -800)
+    camera.lookAt(0, 300, 0)
 
+    // Crear renderizador
+    const canvas = document.querySelector('.webgl');
 
+    // Usa el canvas existente para inicializar el renderizador
+    renderer = new THREE.WebGLRenderer({ canvas });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
 
-//SKY
-const sky = new Sky ()
-sky.scale.set (100,100,100)
-scene.add (sky)
+    // Generar altura y geometría del terreno
+    const data = generateHeight(worldWidth, worldDepth)
+    const geometry = new THREE.PlaneGeometry(7500, 7500, worldWidth - 1, worldDepth - 1)
+    geometry.rotateX(-Math.PI / 2); // Coloca el plano horizontalmente
 
-sky.material.uniforms['turbidity'].value = 10
-sky.material.uniforms['rayleigh'].value = 3
-sky.material.uniforms['mieCoefficient'].value = 0.1
-sky.material.uniforms['mieDirectionalG'].value = 0.95
-sky.material.uniforms['sunPosition'].value.set(0.3, -0.038, -0.95)
+    const vertices = geometry.attributes.position.array;
+    for (let i = 0, j = 0, l = vertices.length; i < l; i++, j += 3) {
+        vertices[j + 1] = data[i] * 10
+    }
 
-//FOG
-scene.fog = new THREE.FogExp2('#02343f',0.1)
+    // Generar textura del terreno
+    texture = new THREE.CanvasTexture(generateTexture(data, worldWidth, worldDepth));
+    texture.wrapS = THREE.ClampToEdgeWrapping
+    texture.wrapT = THREE.ClampToEdgeWrapping
 
- //Animate
- 
-const timer = new Timer()
+    // Crear malla y añadirla a la escena
+    mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: texture }))
+    scene.add(mesh)
 
-const tick = () =>
-{
-    // Timer
-    timer.update()
-    const elapsedTime = timer.getElapsed()
+    // Luz ambiental y direccional
+    const ambientLight = new THREE.AmbientLight(0x1F818C, 0.5)
+    scene.add(ambientLight)
 
+    const directionalLight = new THREE.DirectionalLight(0xB7B5AD, 1)
+    directionalLight.position.set(100, 500, -100).normalize()
+    scene.add(directionalLight)
+
+    // Ajustar tamaño al cambiar el tamaño de la ventana
+    window.addEventListener('resize', onWindowResize)
     
-    // Update controls
-    controls.update()
-
-    // Render
-    renderer.render(scene, camera)
-
-    // Call tick again on the next frame
-    window.requestAnimationFrame(tick)
 }
 
-tick()
+function generateHeight(width, height) {
+    const size = width * height, data = new Uint8Array(size)
+    const perlin = new ImprovedNoise(), z = Math.random() * 2
+    let quality = 1
+
+    for (let j = 0; j < 4; j++) {
+        for (let i = 0; i < size; i++) {
+            const x = i % width, y = ~~(i / width)
+            data[i] += Math.abs(perlin.noise(x / quality, y / quality, z) * quality * 1.75)
+        }
+        quality *= 5
+    }
+    return data
+}
+
+function generateTexture(data, width, height) {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#F6B79C'
+    context.fillRect(0, 0, width, height)
+
+    const image = context.getImageData(0, 0, canvas.width, canvas.height)
+    const imageData = image.data
+
+    const vector3 = new THREE.Vector3(0, 0, 0)
+    const sun = new THREE.Vector3(1, 1, 1).normalize()
+
+    for (let i = 0, j = 0, l = imageData.length; i < l; i += 4, j++) {
+        vector3.x = data[j - 2] - data[j + 2];
+        vector3.y = 2;
+        vector3.z = data[j - width * 2] - data[j + width * 2];
+        vector3.normalize();
+
+        const shade = vector3.dot(sun)
+        imageData[i] = (96 + shade * 128) * (0.5 + data[j] * 0.007)
+        imageData[i + 1] = (32 + shade * 96) * (0.5 + data[j] * 0.007)
+        imageData[i + 2] = (shade * 96) * (0.5 + data[j] * 0.007)
+    }
+
+    context.putImageData(image, 0, 0);
+    return canvas;
+}
+
+function animate() {
+    const targetX = mouse.x * 100
+    const targetY = camera.position.y;
+    const targetZ = Math.min(Math.max(mouse.y * 10, 500), 1500);
+    camera.position.x += (targetX - camera.position.x) * 0.05 
+    camera.position.y = targetY;
+    // Mantén la cámara mirando hacia el centro de la escena
+    camera.lookAt(new THREE.Vector3(0, 300, 0));
+    requestAnimationFrame(animate)
+    renderer.render(scene, camera)
+}

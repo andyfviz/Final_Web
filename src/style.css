@@ -10,14 +10,20 @@ body
     overflow: hidden;
 }
 
-.webgl
+canvas.webgl
 {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    outline: none;
+    z-index: -1;
+    width: 100vw;
+    height: 100vh;
 }
 body, html {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    z-index: 0;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -28,7 +34,6 @@ header{
     font-family: "Aclonica", serif;
     font-weight:400;
     font-style: normal;
-    background-color: rgb(255, 255, 255);
     padding:20px 0;
     display: flex;
     align-items: center;
@@ -67,9 +72,9 @@ header{
     position:fixed;
     top:50px;
     right:10px;
-    background-color: #BFBDB4;
+    background-color: rgba(191, 189, 180, 0.3) ;
     padding:15px;
-    border-radius:5px;
+    border-radius:32px;
 }
 #menu ul{
     list-style:none;
@@ -186,6 +191,10 @@ footer {
 .Reset:active::after {
     transition: 0s;
     transform: translate(0, 5%);
+  }
+
+  .Name, .Share {
+    position: relative;
   }
 
 .Name {
