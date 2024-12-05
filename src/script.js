@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { Sky } from 'three/addons/objects/Sky.js'
+import {GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 let scene, camera, renderer
 let mesh, texture
@@ -38,7 +38,7 @@ function init() {
     scene.fog = new THREE.FogExp2(0x87ceeb, 0.001)// Niebla suave
 
     // Crear cámara
-    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000);
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000)
     camera.position.set(1000, 800, -800)
     camera.lookAt(0, 300, 0)
 
@@ -128,10 +128,138 @@ function generateTexture(data, width, height) {
     return canvas;
 }
 
+/**
+ * MODELS
+ */
+
+function cargarAlebrije() {
+    return new Promise((resolve, reject) => {
+        const grupoAlebrije = new THREE.Group();
+        const gltfLoader = new GLTFLoader();
+        
+        const partPositions = {
+            Head: { 
+                position: new THREE.Vector3(0, 320, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
+            },
+            Body: { 
+                position: new THREE.Vector3(0, 300, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
+            },
+            Tails: { 
+                position: new THREE.Vector3(0, 310, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
+            },
+            F_Legs: { 
+                position: new THREE.Vector3(-100, 320, 0),
+                rotation: new THREE.Euler(0, 0, 0) 
+            },
+            B_Legs: { 
+                position: new THREE.Vector3(110, 320, 0),
+                rotation: new THREE.Euler(0, 0, 0) 
+            },
+            Ears: { 
+                position: new THREE.Vector3(-320, 300, 0),
+                rotation: new THREE.Euler(0, 0, 0) 
+            },
+            Feet: { 
+                position: new THREE.Vector3(0, 150, 0),
+                rotation: new THREE.Euler(0, 0, 0) 
+            },
+            Back: { 
+                position: new THREE.Vector3(-50, 290, 0),
+                rotation: new THREE.Euler(0, 0, 0) 
+            }
+        };
+
+        const partes = {
+            Head: ["Heads/HEAD_Bird.gltf","Heads/HEAD_Dog.gltf","Heads/HEAD_Frog.gltf","Heads/HEAD_Rabbit.gltf"],
+            Tails: ["Tails/TAIL_Bola.gltf","Tails/TAIL_Dog.gltf","Tails/TAIL_Fish.gltf","Tails/TAIL_Lizzard.gltf"],
+            Feet: ["Feet/Patas1.gltf","Feet/Patas2.gltf"],
+            F_Legs: ["F_Legs/F_LegsBird.gltf","F_Legs/F_LegsDog.gltf","F_Legs/F_LegsFrog.gltf"],
+            B_Legs: ["B_Legs/B_LegsDog.gltf","B_Legs/B_LegsFrog.gltf","B_Legs/B_LegsRabbot.gltf"],
+            Ears: ["Ears/EARS_Dogs.gltf","Ears/EARS_Rabbit.gltf","Ears/Horns.gltf"],
+            Body: ["Body/BODY_dog.gltf","Body/BODY_Fish.gltf","Body/BODY_Frog.gltf","Body/BODY_Rabbit.gltf"],
+            Back: ["Back/Butterfly.gltf","Back/Fish.gltf","Back/WINGS01.gltf"]
+        };
+
+        const loadPromises = Object.entries(partes).map(([categoria, modelos]) => {
+            const modeloAleatorio = modelos[Math.floor(Math.random() * modelos.length)]
+            
+            return new Promise((partResolve, partReject) => {
+                gltfLoader.load(
+                    `./Models/${modeloAleatorio}`,
+                    (gltf) => {
+                        const parte = gltf.scene
+                        
+                        const partConfig = partPositions[categoria]
+                        
+                        // Adjust scale more carefully
+                        parte.scale.set(100, 100, 100)
+                        
+                        if (partConfig.position) {
+                            parte.position.copy(partConfig.position)
+                        }
+                        
+                        if (partConfig.rotation) {
+                            parte.rotation.copy(partConfig.rotation)
+                        }
+
+                        // Debug logging
+                        console.log(`Loaded ${categoria} model:`, {
+                            modelName: modeloAleatorio,
+                            position: parte.position,
+                            scale: parte.scale,
+                            boundingBox: new THREE.Box3().setFromObject(parte)
+                        });
+
+                        parte.userData.categoria = categoria;
+
+                        grupoAlebrije.add(parte);
+                        partResolve(parte);
+                    },
+                    // Progress callback
+                    (xhr) => {
+                        console.log(`${categoria} model ${modeloAleatorio} ${(xhr.loaded / xhr.total * 100)}% loaded`);
+                    },
+                    (error) => {
+                        console.error(`Error loading model ${modeloAleatorio} from ${categoria}:`, error);
+                        partReject(error);
+                    }
+                );
+            });
+        });
+
+        Promise.all(loadPromises)
+            .then(() => {
+                scene.add(grupoAlebrije);
+                resolve(grupoAlebrije);
+            })
+            .catch((error) => {
+                console.error('Error loading Alebrije parts:', error);
+                reject(error);
+            });
+    });
+}
+
+// Modify camera position to be closer to the models
+function adjustCameraForModels() {
+    // Adjust camera to be closer to the center
+    camera.position.set(0, 800, -500);
+    camera.lookAt(0, 300, 0);
+}
+
+// Call this after initializing the scene
+init();
+adjustCameraForModels();
+cargarAlebrije();
+
+/**
+ * ANIMACION/MOVIMIENTO DE CAMARA
+ */
 function animate() {
     const targetX = mouse.x * 100
     const targetY = camera.position.y;
-    const targetZ = Math.min(Math.max(mouse.y * 10, 500), 1500);
     camera.position.x += (targetX - camera.position.x) * 0.05 
     camera.position.y = targetY;
     // Mantén la cámara mirando hacia el centro de la escena
