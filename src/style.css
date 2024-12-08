@@ -68,7 +68,6 @@ header{
     font-family: "Poppins", sans-serif;
     font-weight: 400;
     font-style: normal;
-
     position:fixed;
     top:50px;
     right:10px;
@@ -219,7 +218,7 @@ footer {
 .name-input {
     --b: 3px;   /* border thickness */
     --s: .45em; /* size of the corner */
-    --color: #1F818C;
+    --color: #87ceeb;
     
     padding: calc(.5em + var(--s)) calc(.9em + var(--s));
     color: var(--color);
@@ -247,12 +246,12 @@ footer {
     --_p: 0px;
     outline-color: var(--color);
     outline-offset: .05em;
-    background-color: rgba(31, 129, 140, 0.1); 
+    background-color: #87ceeb, 0.1; 
   }
   
   .name-input:active {
     background: var(--color);
-    color: #fff;
+    color: #87ceeb;
   }
 
   .name-confirm {

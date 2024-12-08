@@ -1,11 +1,14 @@
 import * as THREE from 'three';
-import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js'
 import {GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 let scene, camera, renderer
 let mesh, texture
 let mouse = { x: 0, y: 0 }
 const worldWidth = 256, worldDepth = 256
+let Alebrije
+let isDragging =false
+let previousMousePosition = {x:0, y:0}
 
 /**MENU */
 // Función que alterna la visibilidad del menú
@@ -16,9 +19,35 @@ function toggleMenu() {
 document.querySelector('.icono-menu').addEventListener('click', toggleMenu)
 
 //MOVIMIENTO MOUSE
+window.addEventListener('mousedown', (event) => {
+    // Check if the mouse is over the Alebrije
+    isDragging = true;
+    previousMousePosition = {
+        x: event.clientX,
+        y: event.clientY
+    };
+}); 
 window.addEventListener('mousemove', (event) => {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    if (isDragging && Alebrije) {
+        const deltaMove = {
+            x: event.clientX - previousMousePosition.x
+        }
+
+        // Rotate around Y-axis based on horizontal mouse movement
+        Alebrije.rotation.y += deltaMove.x * 0.01
+
+        previousMousePosition = {
+            x: event.clientX,
+            y: event.clientY
+        }
+    }
+})
+
+window.addEventListener('mouseup', () => {
+    isDragging = false
 })
 
 function onWindowResize() {
@@ -35,7 +64,7 @@ function init() {
     scene = new THREE.Scene()
 
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.FogExp2(0x87ceeb, 0.001)// Niebla suave
+    scene.fog = new THREE.FogExp2(0x87ceeb, 0.0008)// Niebla suave
 
     // Crear cámara
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000)
@@ -67,6 +96,7 @@ function init() {
 
     // Crear malla y añadirla a la escena
     mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: texture }))
+    mesh.position.y -=450
     scene.add(mesh)
 
     // Luz ambiental y direccional
@@ -131,11 +161,10 @@ function generateTexture(data, width, height) {
 /**
  * MODELS
  */
-
 function cargarAlebrije() {
     return new Promise((resolve, reject) => {
-        const grupoAlebrije = new THREE.Group();
-        const gltfLoader = new GLTFLoader();
+        Alebrije = new THREE.Group()
+        const gltfLoader = new GLTFLoader()
         
         const partPositions = {
             Head: { 
@@ -147,28 +176,28 @@ function cargarAlebrije() {
                 rotation: new THREE.Euler(0, Math.PI, 0) 
             },
             Tails: { 
-                position: new THREE.Vector3(0, 310, 0),
+                position: new THREE.Vector3(0, 300, 0),
                 rotation: new THREE.Euler(0, Math.PI, 0) 
             },
             F_Legs: { 
-                position: new THREE.Vector3(-100, 320, 0),
-                rotation: new THREE.Euler(0, 0, 0) 
+                position: new THREE.Vector3(-25, 300, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
             },
             B_Legs: { 
-                position: new THREE.Vector3(110, 320, 0),
+                position: new THREE.Vector3(300, 290, 0),
                 rotation: new THREE.Euler(0, 0, 0) 
             },
             Ears: { 
-                position: new THREE.Vector3(-320, 300, 0),
-                rotation: new THREE.Euler(0, 0, 0) 
+                position: new THREE.Vector3(-25, 320, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
             },
             Feet: { 
-                position: new THREE.Vector3(0, 150, 0),
-                rotation: new THREE.Euler(0, 0, 0) 
+                position: new THREE.Vector3(-25, 300, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
             },
             Back: { 
-                position: new THREE.Vector3(-50, 290, 0),
-                rotation: new THREE.Euler(0, 0, 0) 
+                position: new THREE.Vector3(-30, 300, 0),
+                rotation: new THREE.Euler(0, Math.PI, 0) 
             }
         };
 
@@ -178,7 +207,7 @@ function cargarAlebrije() {
             Feet: ["Feet/Patas1.gltf","Feet/Patas2.gltf"],
             F_Legs: ["F_Legs/F_LegsBird.gltf","F_Legs/F_LegsDog.gltf","F_Legs/F_LegsFrog.gltf"],
             B_Legs: ["B_Legs/B_LegsDog.gltf","B_Legs/B_LegsFrog.gltf","B_Legs/B_LegsRabbot.gltf"],
-            Ears: ["Ears/EARS_Dogs.gltf","Ears/EARS_Rabbit.gltf","Ears/Horns.gltf"],
+            Ears: ["Ears/EARS_Dog.gltf","Ears/EARS_Rabbit.gltf","Ears/Horns.gltf"],
             Body: ["Body/BODY_dog.gltf","Body/BODY_Fish.gltf","Body/BODY_Frog.gltf","Body/BODY_Rabbit.gltf"],
             Back: ["Back/Butterfly.gltf","Back/Fish.gltf","Back/WINGS01.gltf"]
         };
@@ -195,7 +224,7 @@ function cargarAlebrije() {
                         const partConfig = partPositions[categoria]
                         
                         // Adjust scale more carefully
-                        parte.scale.set(100, 100, 100)
+                        parte.scale.set(150, 150, 150)
                         
                         if (partConfig.position) {
                             parte.position.copy(partConfig.position)
@@ -213,10 +242,10 @@ function cargarAlebrije() {
                             boundingBox: new THREE.Box3().setFromObject(parte)
                         });
 
-                        parte.userData.categoria = categoria;
+                        parte.userData.categoria = categoria
 
-                        grupoAlebrije.add(parte);
-                        partResolve(parte);
+                        Alebrije.add(parte)
+                        partResolve(parte)
                     },
                     // Progress callback
                     (xhr) => {
@@ -232,27 +261,40 @@ function cargarAlebrije() {
 
         Promise.all(loadPromises)
             .then(() => {
-                scene.add(grupoAlebrije);
-                resolve(grupoAlebrije);
+                scene.add(Alebrije)
+                resolve(Alebrije)
             })
             .catch((error) => {
-                console.error('Error loading Alebrije parts:', error);
-                reject(error);
-            });
-    });
+                console.error('Error loading Alebrije parts:', error)
+                reject(error)
+            })
+    })
 }
-
-// Modify camera position to be closer to the models
 function adjustCameraForModels() {
-    // Adjust camera to be closer to the center
-    camera.position.set(0, 800, -500);
+    camera.position.set(1000, 800, -800);
     camera.lookAt(0, 300, 0);
 }
 
-// Call this after initializing the scene
-init();
-adjustCameraForModels();
-cargarAlebrije();
+init()
+adjustCameraForModels()
+cargarAlebrije()
+
+
+/**
+ * SS of Input
+ */
+document.querySelector('.name-confirm').addEventListener('click', () => {
+    renderer.render(scene, camera);
+    const screenshotDataURL = renderer.domElement.toDataURL('image/png');
+    const fileName = document.querySelector('.name-input').value || 'screenshot';
+
+    // Download
+    const downloadLink = document.createElement('a');
+    downloadLink.href = screenshotDataURL;
+    downloadLink.download = `${fileName}.png`;
+    downloadLink.click();
+});
+
 
 /**
  * ANIMACION/MOVIMIENTO DE CAMARA
@@ -262,7 +304,6 @@ function animate() {
     const targetY = camera.position.y;
     camera.position.x += (targetX - camera.position.x) * 0.05 
     camera.position.y = targetY;
-    // Mantén la cámara mirando hacia el centro de la escena
     camera.lookAt(new THREE.Vector3(0, 300, 0));
     requestAnimationFrame(animate)
     renderer.render(scene, camera)
