@@ -97,9 +97,13 @@ header{
 main {
     display:flex;
     justify-content: center;
-    align-items: center;
+    align-items: left;
     height:100vh;
     flex-direction: column;
+    font-family: "Poppins", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+    font-size: 24px;
 }
 footer {
     font-family: "Poppins", sans-serif;

@@ -9,6 +9,9 @@ const worldWidth = 256, worldDepth = 256
 let Alebrije
 let isDragging =false
 let previousMousePosition = {x:0, y:0}
+const raycaster = new THREE.Raycaster()
+let selectedPart = null
+
 
 /**MENU */
 // Función que alterna la visibilidad del menú
@@ -55,7 +58,6 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight)
 }
-
 init()
 animate()
 
@@ -159,6 +161,44 @@ function generateTexture(data, width, height) {
 }
 
 /**
+ * Shader
+ */
+
+
+// Color shader material
+function createColorShaderMaterial(originalMaterial) {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            baseColor: { value: originalMaterial.color || new THREE.Color(1,1,1) },
+            mixColor: { value: new THREE.Color(1, 1, 1) },
+            mixAmount: { value: 0.0 },
+            map: { value: originalMaterial.map || null }
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 baseColor;
+            uniform vec3 mixColor;
+            uniform float mixAmount;
+            uniform sampler2D map;
+            varying vec2 vUv;
+
+            void main() {
+                vec3 texColor = texture2D(map, vUv).rgb;
+                vec3 finalColor = mix(baseColor * texColor, mixColor, mixAmount);
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `,
+        transparent: true,
+        opacity: 1.0
+    });
+}
+/**
  * MODELS
  */
 function cargarAlebrije() {
@@ -179,11 +219,11 @@ function cargarAlebrije() {
                 position: new THREE.Vector3(0, 300, 0),
                 rotation: new THREE.Euler(0, Math.PI, 0) 
             },
-            F_Legs: { 
+            FrontLegs: { 
                 position: new THREE.Vector3(-25, 300, 0),
                 rotation: new THREE.Euler(0, Math.PI, 0) 
             },
-            B_Legs: { 
+            BackLegs: { 
                 position: new THREE.Vector3(300, 290, 0),
                 rotation: new THREE.Euler(0, 0, 0) 
             },
@@ -205,8 +245,8 @@ function cargarAlebrije() {
             Head: ["Heads/HEAD_Bird.gltf","Heads/HEAD_Dog.gltf","Heads/HEAD_Frog.gltf","Heads/HEAD_Rabbit.gltf"],
             Tails: ["Tails/TAIL_Bola.gltf","Tails/TAIL_Dog.gltf","Tails/TAIL_Fish.gltf","Tails/TAIL_Lizzard.gltf"],
             Feet: ["Feet/Patas1.gltf","Feet/Patas2.gltf"],
-            F_Legs: ["F_Legs/F_LegsBird.gltf","F_Legs/F_LegsDog.gltf","F_Legs/F_LegsFrog.gltf"],
-            B_Legs: ["B_Legs/B_LegsDog.gltf","B_Legs/B_LegsFrog.gltf","B_Legs/B_LegsRabbot.gltf"],
+            FrontLegs: ["F_Legs/F_LegsBird.gltf","F_Legs/F_LegsDog.gltf","F_Legs/F_LegsFrog.gltf"],
+            BackLegs: ["B_Legs/B_LegsDog.gltf","B_Legs/B_LegsFrog.gltf","B_Legs/B_LegsRabbot.gltf"],
             Ears: ["Ears/EARS_Dog.gltf","Ears/EARS_Rabbit.gltf","Ears/Horns.gltf"],
             Body: ["Body/BODY_dog.gltf","Body/BODY_Fish.gltf","Body/BODY_Frog.gltf","Body/BODY_Rabbit.gltf"],
             Back: ["Back/Butterfly.gltf","Back/Fish.gltf","Back/WINGS01.gltf"]
@@ -223,6 +263,17 @@ function cargarAlebrije() {
                         
                         const partConfig = partPositions[categoria]
                         
+                        // Apply shader material to each mesh in the part
+                        parte.traverse((child) => {
+                            if (child.isMesh) {
+                                const originalMaterial = child.material;
+                                const shaderMaterial = createColorShaderMaterial(originalMaterial);
+                                child.material = shaderMaterial;
+                                child.userData.originalMaterial = originalMaterial;
+                                child.userData.shaderMaterial = shaderMaterial;
+                            }
+                        })
+
                         // Adjust scale more carefully
                         parte.scale.set(150, 150, 150)
                         
@@ -255,13 +306,14 @@ function cargarAlebrije() {
                         console.error(`Error loading model ${modeloAleatorio} from ${categoria}:`, error);
                         partReject(error);
                     }
-                );
-            });
-        });
+                )
+            })
+        })
 
         Promise.all(loadPromises)
             .then(() => {
                 scene.add(Alebrije)
+                setupPartSelection()
                 resolve(Alebrije)
             })
             .catch((error) => {
@@ -274,6 +326,83 @@ function adjustCameraForModels() {
     camera.position.set(1000, 800, -800);
     camera.lookAt(0, 300, 0);
 }
+
+// Setup part selection
+function setupPartSelection() {
+    window.addEventListener('click', (event) => {
+        // Calculate mouse position in normalized device coordinates
+        const mouse = new THREE.Vector2(
+            (event.clientX / window.innerWidth) * 2 - 1,
+            -(event.clientY / window.innerHeight) * 2 + 1
+        );
+
+        // Update the picking ray with the camera and mouse position
+        raycaster.setFromCamera(mouse, camera);
+
+        // Calculate objects intersecting the picking ray
+        const intersects = raycaster.intersectObjects(Alebrije.children, true);
+
+        if (intersects.length > 0) {
+            // Find the top-level parent (Alebrije part)
+            let selectedPart = intersects[0].object;
+            while (selectedPart.parent !== Alebrije) {
+                selectedPart = selectedPart.parent;
+            }
+
+            // Deselect previous part if exists
+            if (window.currentlySelectedPart) {
+                window.currentlySelectedPart.traverse((child) => {
+                    if (child.isMesh && child.userData.originalMaterial) {
+                        child.material = child.userData.originalMaterial;
+                    }
+                });
+            }
+
+            // Select new part
+            window.currentlySelectedPart = selectedPart;
+            
+            // Apply shader to selected part
+            selectedPart.traverse((child) => {
+                if (child.isMesh) {
+                    // Create a new shader material based on the original material
+                    const shaderMaterial = createColorShaderMaterial(child.material);
+                    child.userData.originalMaterial = child.material;
+                    child.material = shaderMaterial;
+                }
+            });
+
+            // Update UI to show selected part details
+            updatePartSelectionUI(selectedPart);
+        }
+    });
+}
+
+// Update UI for part selection
+function updatePartSelectionUI(part) {
+    const partInfoElement = document.getElementById('part-info');
+    partInfoElement.textContent = `Selected: ${part.userData.categoria}`;
+
+    // Color picker setup
+    const colorPicker = document.getElementById('color-picker');
+    
+    // Remove previous event listeners to prevent multiple bindings
+    const oldColorPicker = colorPicker.cloneNode(true);
+    colorPicker.parentNode.replaceChild(oldColorPicker, colorPicker);
+
+    oldColorPicker.addEventListener('input', (event) => {
+        const color = new THREE.Color(event.target.value);
+        
+        // Apply color only to the currently selected part
+        part.traverse((child) => {
+            if (child.isMesh && child.material.uniforms) {
+                child.material.uniforms.mixColor.value = color;
+                child.material.uniforms.mixAmount.value = 0.5; // 50% mix
+            }
+        });
+    });
+}
+
+
 
 init()
 adjustCameraForModels()
