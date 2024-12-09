@@ -38,8 +38,24 @@
 
 <main>
     <div id="part-selection-controls">
+        <div id="controls-left">
+            <label>Pattern Type:</label>
+            <select id="pattern-select">
+                <option value="none">No Pattern</option>
+                <option value="stripes">Stripes</option>
+                <option value="checkers">Checkers</option>
+                <option value="dots">Dots</option>
+                <option value="waves">Waves</option>
+                <option value="noise">Noise</option>
+            </select>
+        </div>
+        <div id="controls-right">
+            <label>Base Color:</label>
+            <input type="color" id="base-color-picker">
+            <label>Pattern Color:</label>
+            <input type="color" id="pattern-color-picker">
+        </div>
         <div id="part-info">No part selected</div>
-        <input type="color" id="color-picker">
     </div>
 </main>
 

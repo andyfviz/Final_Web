@@ -166,37 +166,112 @@ function generateTexture(data, width, height) {
 
 
 // Color shader material
-function createColorShaderMaterial(originalMaterial) {
+function createPatternShaderMaterial(originalMaterial, patternType = 'none') {
     return new THREE.ShaderMaterial({
         uniforms: {
             baseColor: { value: originalMaterial.color || new THREE.Color(1,1,1) },
-            mixColor: { value: new THREE.Color(1, 1, 1) },
-            mixAmount: { value: 0.0 },
-            map: { value: originalMaterial.map || null }
+            patternColor: { value: new THREE.Color(0,0,0) },
+            time: { value: 0.0 },
+            scale: { value: 5.0 },
+            patternType: { value: getPatternTypeValue(patternType) }
         },
         vertexShader: `
             varying vec2 vUv;
+            uniform float time;
+            
             void main() {
                 vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                vec3 transformed = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
             }
         `,
         fragmentShader: `
             uniform vec3 baseColor;
-            uniform vec3 mixColor;
-            uniform float mixAmount;
-            uniform sampler2D map;
+            uniform vec3 patternColor;
+            uniform float time;
+            uniform float scale;
+            uniform int patternType;
+            
             varying vec2 vUv;
 
+            // Noise functions
+            float random(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
+
+            float noise(vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+                float a = random(i);
+                float b = random(i + vec2(1.0, 0.0));
+                float c = random(i + vec2(0.0, 1.0));
+                float d = random(i + vec2(1.0, 1.0));
+                vec2 u = f * f * (3.0 - 2.0 * f);
+                return mix(a, b, u.x) +
+                        (c - a)* u.y * (1.0 - u.x) +
+                        (d - b) * u.x * u.y;
+            }
+
+            // Pattern generation functions
+            float stripes(vec2 st, float width) {
+                return step(width, mod(st.x * scale, 1.0));
+            }
+
+            float checkers(vec2 st) {
+                return step(0.5, mod(floor(st.x * scale) + floor(st.y * scale), 2.0));
+            }
+
+            float dots(vec2 st) {
+                vec2 pos = st * scale;
+                float dist = length(fract(pos) - 0.5);
+                return 1.0 - smoothstep(0.2, 0.3, dist);
+            }
+
+            float waves(vec2 st) {
+                return sin(st.x * scale + time) * 0.5 + 0.5;
+            }
+
             void main() {
-                vec3 texColor = texture2D(map, vUv).rgb;
-                vec3 finalColor = mix(baseColor * texColor, mixColor, mixAmount);
+                vec3 finalColor = baseColor;
+                float pattern = 0.0;
+
+                // Pattern selection
+                if (patternType == 1) {
+                    // Stripes
+                    pattern = stripes(vUv, 0.5);
+                } else if (patternType == 2) {
+                    // Checkers
+                    pattern = checkers(vUv);
+                } else if (patternType == 3) {
+                    // Dots
+                    pattern = dots(vUv);
+                } else if (patternType == 4) {
+                    // Waves
+                    pattern = waves(vUv);
+                } else if (patternType == 5) {
+                    // Noise
+                    pattern = noise(vUv * scale);
+                }
+
+                // Mix base color with pattern color
+                finalColor = mix(baseColor, patternColor, pattern);
+                
                 gl_FragColor = vec4(finalColor, 1.0);
             }
         `,
-        transparent: true,
-        opacity: 1.0
+        transparent: true
     });
+}
+function getPatternTypeValue(patternType) {
+    const patternTypes = {
+        'none': 0,
+        'stripes': 1,
+        'checkers': 2,
+        'dots': 3,
+        'waves': 4,
+        'noise': 5
+    };
+    return patternTypes[patternType] || 0;
 }
 /**
  * MODELS
@@ -267,7 +342,7 @@ function cargarAlebrije() {
                         parte.traverse((child) => {
                             if (child.isMesh) {
                                 const originalMaterial = child.material;
-                                const shaderMaterial = createColorShaderMaterial(originalMaterial);
+                                const shaderMaterial = createPatternShaderMaterial(originalMaterial, 'none');
                                 child.material = shaderMaterial;
                                 child.userData.originalMaterial = originalMaterial;
                                 child.userData.shaderMaterial = shaderMaterial;
@@ -327,82 +402,103 @@ function adjustCameraForModels() {
     camera.lookAt(0, 300, 0);
 }
 
-// Setup part selection
-function setupPartSelection() {
-    window.addEventListener('click', (event) => {
-        // Calculate mouse position in normalized device coordinates
-        const mouse = new THREE.Vector2(
-            (event.clientX / window.innerWidth) * 2 - 1,
-            -(event.clientY / window.innerHeight) * 2 + 1
-        );
-
-        // Update the picking ray with the camera and mouse position
-        raycaster.setFromCamera(mouse, camera);
-
-        // Calculate objects intersecting the picking ray
-        const intersects = raycaster.intersectObjects(Alebrije.children, true);
-
-        if (intersects.length > 0) {
-            // Find the top-level parent (Alebrije part)
-            let selectedPart = intersects[0].object;
-            while (selectedPart.parent !== Alebrije) {
-                selectedPart = selectedPart.parent;
-            }
-
-            // Deselect previous part if exists
-            if (window.currentlySelectedPart) {
-                window.currentlySelectedPart.traverse((child) => {
-                    if (child.isMesh && child.userData.originalMaterial) {
-                        child.material = child.userData.originalMaterial;
-                    }
-                });
-            }
-
-            // Select new part
-            window.currentlySelectedPart = selectedPart;
-            
-            // Apply shader to selected part
-            selectedPart.traverse((child) => {
-                if (child.isMesh) {
-                    // Create a new shader material based on the original material
-                    const shaderMaterial = createColorShaderMaterial(child.material);
-                    child.userData.originalMaterial = child.material;
-                    child.material = shaderMaterial;
-                }
-            });
-
-            // Update UI to show selected part details
-            updatePartSelectionUI(selectedPart);
-        }
-    });
-}
 
 // Update UI for part selection
 function updatePartSelectionUI(part) {
     const partInfoElement = document.getElementById('part-info');
     partInfoElement.textContent = `Selected: ${part.userData.categoria}`;
 
-    // Color picker setup
-    const colorPicker = document.getElementById('color-picker');
-    
-    // Remove previous event listeners to prevent multiple bindings
-    const oldColorPicker = colorPicker.cloneNode(true);
-    colorPicker.parentNode.replaceChild(oldColorPicker, colorPicker);
+    // Color pickers
+    const baseColorPicker = document.getElementById('base-color-picker');
+    const patternColorPicker = document.getElementById('pattern-color-picker');
+    const patternSelect = document.getElementById('pattern-select');
 
-    oldColorPicker.addEventListener('input', (event) => {
-        const color = new THREE.Color(event.target.value);
+    // Remove previous event listeners
+    const oldBaseColorPicker = baseColorPicker.cloneNode(true);
+    baseColorPicker.parentNode.replaceChild(oldBaseColorPicker, baseColorPicker);
+
+    const oldPatternColorPicker = patternColorPicker.cloneNode(true);
+    patternColorPicker.parentNode.replaceChild(oldPatternColorPicker, patternColorPicker);
+
+    const oldPatternSelect = patternSelect.cloneNode(true);
+    patternSelect.parentNode.replaceChild(oldPatternSelect, patternSelect);
+
+    // Base color change
+    oldBaseColorPicker.addEventListener('input', (event) => {
+        const baseColor = new THREE.Color(event.target.value);
         
-        // Apply color only to the currently selected part
         part.traverse((child) => {
             if (child.isMesh && child.material.uniforms) {
-                child.material.uniforms.mixColor.value = color;
-                child.material.uniforms.mixAmount.value = 0.5; // 50% mix
+                child.material.uniforms.baseColor.value = baseColor;
             }
         });
     });
+// Pattern color change
+oldPatternColorPicker.addEventListener('input', (event) => {
+    const patternColor = new THREE.Color(event.target.value);
+    
+    part.traverse((child) => {
+        if (child.isMesh && child.material.uniforms) {
+            child.material.uniforms.patternColor.value = patternColor;
+        }
+    });
+});
+
+// Pattern type change
+oldPatternSelect.addEventListener('change', (event) => {
+    const patternType = event.target.value;
+    
+    part.traverse((child) => {
+        if (child.isMesh) {
+            // Recreate shader material with new pattern
+            const shaderMaterial = createPatternShaderMaterial(
+                child.userData.originalMaterial, 
+                patternType
+            );
+            child.material = shaderMaterial;
+        }
+    });
+});
 }
 
+// Modify part selection setup to use pattern shader
+function setupPartSelection() {
+    window.addEventListener('click', (event) => {
+        const mouse = new THREE.Vector2(
+            (event.clientX / window.innerWidth) * 2 - 1,
+            -(event.clientY / window.innerHeight) * 2 + 1
+        );
 
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(Alebrije.children, true);
+
+        if (intersects.length > 0) {
+            // Find the top-level part
+            let selectedPart = intersects[0].object;
+            while (selectedPart.parent !== Alebrije) {
+                selectedPart = selectedPart.parent;
+            }
+
+             // Select new part without resetting previous parts
+             window.currentlySelectedPart = selectedPart;
+
+            // Select new part
+            window.currentlySelectedPart = selectedPart;
+            
+            // Apply pattern shader to selected part
+            selectedPart.traverse((child) => {
+                if (child.isMesh) {
+                    const shaderMaterial = createPatternShaderMaterial(child.material);
+                    child.userData.originalMaterial = child.material;
+                    child.material = shaderMaterial;
+                }
+            });
+
+            // Update UI
+            updatePartSelectionUI(selectedPart);
+        }
+    });
+}
 
 init()
 adjustCameraForModels()
@@ -435,5 +531,11 @@ function animate() {
     camera.position.y = targetY;
     camera.lookAt(new THREE.Vector3(0, 300, 0));
     requestAnimationFrame(animate)
+    // Update time uniform for animated patterns
+    scene.traverse((child) => {
+        if (child.isMesh && child.material.uniforms && child.material.uniforms.time) {
+            child.material.uniforms.time.value = performance.now() * 0.001;
+        }
+    });
     renderer.render(scene, camera)
 }
