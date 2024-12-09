@@ -23,8 +23,7 @@ document.querySelector('.icono-menu').addEventListener('click', toggleMenu)
 
 //MOVIMIENTO MOUSE
 window.addEventListener('mousedown', (event) => {
-    // Check if the mouse is over the Alebrije
-    isDragging = true;
+    isDragging = true
     previousMousePosition = {
         x: event.clientX,
         y: event.clientY
@@ -38,8 +37,6 @@ window.addEventListener('mousemove', (event) => {
         const deltaMove = {
             x: event.clientX - previousMousePosition.x
         }
-
-        // Rotate around Y-axis based on horizontal mouse movement
         Alebrije.rotation.y += deltaMove.x * 0.01
 
         previousMousePosition = {
@@ -84,7 +81,7 @@ function init() {
     // Generar altura y geometría del terreno
     const data = generateHeight(worldWidth, worldDepth)
     const geometry = new THREE.PlaneGeometry(7500, 7500, worldWidth - 1, worldDepth - 1)
-    geometry.rotateX(-Math.PI / 2); // Coloca el plano horizontalmente
+    geometry.rotateX(-Math.PI / 2)
 
     const vertices = geometry.attributes.position.array;
     for (let i = 0, j = 0, l = vertices.length; i < l; i++, j += 3) {
@@ -338,7 +335,7 @@ function cargarAlebrije() {
                         
                         const partConfig = partPositions[categoria]
                         
-                        // Apply shader material to each mesh in the part
+                        // shader material
                         parte.traverse((child) => {
                             if (child.isMesh) {
                                 const originalMaterial = child.material;
@@ -348,14 +345,10 @@ function cargarAlebrije() {
                                 child.userData.shaderMaterial = shaderMaterial;
                             }
                         })
-
-                        // Adjust scale more carefully
                         parte.scale.set(150, 150, 150)
-                        
                         if (partConfig.position) {
                             parte.position.copy(partConfig.position)
                         }
-                        
                         if (partConfig.rotation) {
                             parte.rotation.copy(partConfig.rotation)
                         }
@@ -398,30 +391,30 @@ function cargarAlebrije() {
     })
 }
 function adjustCameraForModels() {
-    camera.position.set(1000, 800, -800);
-    camera.lookAt(0, 300, 0);
+    camera.position.set(1000, 800, -800)
+    camera.lookAt(0, 300, 0)
 }
 
 
 // Update UI for part selection
 function updatePartSelectionUI(part) {
-    const partInfoElement = document.getElementById('part-info');
-    partInfoElement.textContent = `Selected: ${part.userData.categoria}`;
+    const partInfoElement = document.getElementById('part-info')
+    partInfoElement.textContent = `Selected: ${part.userData.categoria}`
 
-    // Color pickers
-    const baseColorPicker = document.getElementById('base-color-picker');
-    const patternColorPicker = document.getElementById('pattern-color-picker');
-    const patternSelect = document.getElementById('pattern-select');
+    // Color 
+    const baseColorPicker = document.getElementById('base-color-picker')
+    const patternColorPicker = document.getElementById('pattern-color-picker')
+    const patternSelect = document.getElementById('pattern-select')
 
     // Remove previous event listeners
-    const oldBaseColorPicker = baseColorPicker.cloneNode(true);
-    baseColorPicker.parentNode.replaceChild(oldBaseColorPicker, baseColorPicker);
+    const oldBaseColorPicker = baseColorPicker.cloneNode(true)
+    baseColorPicker.parentNode.replaceChild(oldBaseColorPicker, baseColorPicker)
 
     const oldPatternColorPicker = patternColorPicker.cloneNode(true);
-    patternColorPicker.parentNode.replaceChild(oldPatternColorPicker, patternColorPicker);
+    patternColorPicker.parentNode.replaceChild(oldPatternColorPicker, patternColorPicker)
 
-    const oldPatternSelect = patternSelect.cloneNode(true);
-    patternSelect.parentNode.replaceChild(oldPatternSelect, patternSelect);
+    const oldPatternSelect = patternSelect.cloneNode(true)
+    patternSelect.parentNode.replaceChild(oldPatternSelect, patternSelect)
 
     // Base color change
     oldBaseColorPicker.addEventListener('input', (event) => {
@@ -429,24 +422,23 @@ function updatePartSelectionUI(part) {
         
         part.traverse((child) => {
             if (child.isMesh && child.material.uniforms) {
-                child.material.uniforms.baseColor.value = baseColor;
+                child.material.uniforms.baseColor.value = baseColor
             }
-        });
-    });
-// Pattern color change
+        })
+    })
+// Pattern color 
 oldPatternColorPicker.addEventListener('input', (event) => {
-    const patternColor = new THREE.Color(event.target.value);
+    const patternColor = new THREE.Color(event.target.value)
     
     part.traverse((child) => {
         if (child.isMesh && child.material.uniforms) {
-            child.material.uniforms.patternColor.value = patternColor;
+            child.material.uniforms.patternColor.value = patternColor
         }
-    });
-});
-
-// Pattern type change
+    })
+})
+// Pattern type 
 oldPatternSelect.addEventListener('change', (event) => {
-    const patternType = event.target.value;
+    const patternType = event.target.value
     
     part.traverse((child) => {
         if (child.isMesh) {
@@ -454,14 +446,12 @@ oldPatternSelect.addEventListener('change', (event) => {
             const shaderMaterial = createPatternShaderMaterial(
                 child.userData.originalMaterial, 
                 patternType
-            );
-            child.material = shaderMaterial;
+            )
+            child.material = shaderMaterial
         }
-    });
-});
+    })
+})
 }
-
-// Modify part selection setup to use pattern shader
 function setupPartSelection() {
     window.addEventListener('click', (event) => {
         const mouse = new THREE.Vector2(
@@ -470,34 +460,29 @@ function setupPartSelection() {
         );
 
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(Alebrije.children, true);
+        const intersects = raycaster.intersectObjects(Alebrije.children, true)
 
         if (intersects.length > 0) {
-            // Find the top-level part
-            let selectedPart = intersects[0].object;
+            let selectedPart = intersects[0].object
             while (selectedPart.parent !== Alebrije) {
-                selectedPart = selectedPart.parent;
+                selectedPart = selectedPart.parent
             }
+            //No reset
+             window.currentlySelectedPart = selectedPart
 
-             // Select new part without resetting previous parts
-             window.currentlySelectedPart = selectedPart;
-
-            // Select new part
-            window.currentlySelectedPart = selectedPart;
-            
-            // Apply pattern shader to selected part
+            //new part
+            window.currentlySelectedPart = selectedPart
+            //pattern shader
             selectedPart.traverse((child) => {
                 if (child.isMesh) {
-                    const shaderMaterial = createPatternShaderMaterial(child.material);
-                    child.userData.originalMaterial = child.material;
-                    child.material = shaderMaterial;
+                    const shaderMaterial = createPatternShaderMaterial(child.material)
+                    child.userData.originalMaterial = child.material
+                    child.material = shaderMaterial
                 }
-            });
-
-            // Update UI
-            updatePartSelectionUI(selectedPart);
+            })
+            updatePartSelectionUI(selectedPart)
         }
-    });
+    })
 }
 
 init()
@@ -509,15 +494,15 @@ cargarAlebrije()
  * SS of Input
  */
 document.querySelector('.name-confirm').addEventListener('click', () => {
-    renderer.render(scene, camera);
-    const screenshotDataURL = renderer.domElement.toDataURL('image/png');
-    const fileName = document.querySelector('.name-input').value || 'screenshot';
+    renderer.render(scene, camera)
+    const screenshotDataURL = renderer.domElement.toDataURL('image/png')
+    const fileName = document.querySelector('.name-input').value || 'screenshot'
 
     // Download
-    const downloadLink = document.createElement('a');
-    downloadLink.href = screenshotDataURL;
-    downloadLink.download = `${fileName}.png`;
-    downloadLink.click();
+    const downloadLink = document.createElement('a')
+    downloadLink.href = screenshotDataURL
+    downloadLink.download = `${fileName}.png`
+    downloadLink.click()
 });
 
 
@@ -526,16 +511,16 @@ document.querySelector('.name-confirm').addEventListener('click', () => {
  */
 function animate() {
     const targetX = mouse.x * 100
-    const targetY = camera.position.y;
+    const targetY = camera.position.y
     camera.position.x += (targetX - camera.position.x) * 0.05 
-    camera.position.y = targetY;
-    camera.lookAt(new THREE.Vector3(0, 300, 0));
+    camera.position.y = targetY
+    camera.lookAt(new THREE.Vector3(0, 300, 0))
     requestAnimationFrame(animate)
-    // Update time uniform for animated patterns
+    //animated patterns
     scene.traverse((child) => {
         if (child.isMesh && child.material.uniforms && child.material.uniforms.time) {
-            child.material.uniforms.time.value = performance.now() * 0.001;
+            child.material.uniforms.time.value = performance.now() * 0.001
         }
-    });
+    })
     renderer.render(scene, camera)
 }
